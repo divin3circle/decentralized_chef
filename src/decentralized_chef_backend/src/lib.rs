@@ -21,6 +21,14 @@ struct RecipeManager {
 // Function to add a recipe
 #[ic_cdk::update]
 fn add_recipe(name: String, category: String, ingredients: Vec<String>, instructions: String) {
+    // Check for duplicate recipe name
+    if let Some(existing_recipe) = RecipeManager::load().recipes.get(&name) {
+        // Raise error or return appropriate message indicating conflict
+        error!("Recipe with name '{}' already exists: {:?}", name, existing_recipe);
+        return;
+    }
+
+    // Create and initialize new recipe object
     let recipe = Recipe {
         name: name.clone(),
         category: category.clone(),
@@ -28,26 +36,34 @@ fn add_recipe(name: String, category: String, ingredients: Vec<String>, instruct
         instructions: instructions.clone(),
     };
 
-    let mut recipe_manager = RecipeManager::default();
+    // Access RecipeManager instance safely
+    let mut recipe_manager = RecipeManager::load();
 
-    if !recipe_manager.recipes.contains_key(&name) {
-        recipe_manager.recipes.insert(name.clone(), recipe.clone());
+    // Insert new recipe into the recipes map
+    recipe_manager.recipes.insert(name.clone(), recipe.clone());
 
-        // Update categories map
-        if !recipe_manager.categories.contains_key(&category) {
-            recipe_manager.categories.insert(category.clone(), vec![name.clone()]);
-        } else {
-            recipe_manager.categories.get_mut(&category).unwrap().push(name.clone());
-        }
+    // Update categories map
+    if !recipe_manager.categories.contains_key(&category) {
+        recipe_manager.categories.insert(category.clone(), vec![name.clone()]);
+    } else {
+        recipe_manager.categories.get_mut(&category).unwrap().push(name.clone());
     }
+
+    // Save the updated RecipeManager instance
+    recipe_manager.save();
 }
 
 // Function to search for recipes by category
 #[ic_cdk::query]
 fn search_by_category(category: String) -> Vec<Recipe> {
-    let recipe_manager = RecipeManager::default();
+    // Sanitize input to prevent malicious characters or expressions
+    let sanitized_category = sanitize_input(category);
 
-    if let Some(recipe_names) = recipe_manager.categories.get(&category) {
+    // Access RecipeManager instance safely
+    let recipe_manager = RecipeManager::load();
+
+    // Retrieve recipes based on the sanitized category
+    if let Some(recipe_names) = recipe_manager.categories.get(&sanitized_category) {
         let recipes: Vec<Recipe> = recipe_names
             .iter()
             .filter_map(|name| recipe_manager.recipes.get(name))
@@ -62,14 +78,23 @@ fn search_by_category(category: String) -> Vec<Recipe> {
 // Function to search for recipes by name
 #[ic_cdk::query]
 fn search_by_name(name: String) -> Option<Recipe> {
-    let recipe_manager = RecipeManager::default();
-    recipe_manager.recipes.get(&name).cloned()
+    // Sanitize input to prevent malicious characters or expressions
+    let sanitized_name = sanitize_input(name);
+
+    // Access RecipeManager instance safely
+    let recipe_manager = RecipeManager::load();
+
+    // Retrieve recipe based on the sanitized name
+    recipe_manager.recipes.get(&sanitized_name).cloned()
 }
 
 // Function to get all recipes
 #[ic_cdk::query]
 fn get_all_recipes() -> Vec<Recipe> {
-    let recipe_manager = RecipeManager::default();
+    // Access RecipeManager instance safely
+    let recipe_manager = RecipeManager::load();
+
+    // Efficient retrieval of all recipes
     let all_recipes: Vec<Recipe> = recipe_manager.recipes.values().cloned().collect();
     all_recipes
 }
