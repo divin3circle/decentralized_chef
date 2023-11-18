@@ -1,4 +1,5 @@
 [workspace]
 members = [
-    "src/icp_rust_boilerplate_backend",
+    "src/decentralized_chef_backend",
 ]
+resolver = "1" # Optionally specify the resolver if you're using a virtual workspace

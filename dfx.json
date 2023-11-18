@@ -1,10 +1,10 @@
 {
   "version": 1,
   "canisters": {
-    "icp_rust_boilerplate_backend": {
+    "decentralized_chef_backend": {
       "type": "rust",
-      "package": "icp_rust_boilerplate_backend",
-      "candid": "src/icp_rust_boilerplate_backend/icp_rust_boilerplate_backend.did"
+      "package": "decentralized_chef_backend",
+      "candid": "src/decentralized_chef_backend/decentralized_chef_backend.did"
     }
   },
   "output_env_file": ".env"

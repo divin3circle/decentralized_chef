@@ -1,0 +1,6 @@
+(record {
+  name = "Brown Chapati";
+  category = "Kenyan";
+  ingredients = vec { "Flour" };
+  instructions = "SEE MANUAL";
+})

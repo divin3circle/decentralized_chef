@@ -1,0 +1,12 @@
+type Recipe = record {
+  name : text;
+  instructions : text;
+  category : text;
+  ingredients : vec text;
+};
+service : {
+  add_recipe : (text, text, vec text, text) -> ();
+  get_all_recipes : () -> (vec Recipe) query;
+  search_by_category : (text) -> (vec Recipe) query;
+  search_by_name : (text) -> (opt Recipe) query;
+}
