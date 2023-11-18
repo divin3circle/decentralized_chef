@@ -133,3 +133,8 @@ dfx canister call be2us-64aaa-aaaaa-qaabq-cai add_recipe "Lasagna" "Italian" '["
 1. add_recipe: Adds a new recipe to the system.
 1. update_recipe: Updates an existing recipe.
 1. delete_recipe: Deletes a recipe.
+
+### Call functions issue
+
+At the moment all the query functions are always returning and empty vector despite proper data storage.
+![Cndid UI screenshot showing the call function properly storing the data](error.png)
