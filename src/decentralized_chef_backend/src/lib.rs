@@ -21,32 +21,40 @@ struct RecipeManager {
 // Function to add a recipe
 #[ic_cdk::update]
 fn add_recipe(name: String, category: String, ingredients: Vec<String>, instructions: String) {
-    // Check for duplicate recipe name
-    if let Some(existing_recipe) = RecipeManager::load().recipes.get(&name) {
-        // Raise error or return appropriate message indicating conflict
-        error!("Recipe with name '{}' already exists: {:?}", name, existing_recipe);
+    // Validate inputs
+    if name.trim().is_empty() || category.trim().is_empty() || instructions.trim().is_empty() {
+        // Return an error or handle the invalid input appropriately
+        error!("Invalid input. Name, category, and instructions are required.");
         return;
     }
-
-    // Create and initialize new recipe object
-    let recipe = Recipe {
-        name: name.clone(),
-        category: category.clone(),
-        ingredients: ingredients.clone(),
-        instructions: instructions.clone(),
-    };
 
     // Access RecipeManager instance safely
     let mut recipe_manager = RecipeManager::load();
 
-    // Insert new recipe into the recipes map
-    recipe_manager.recipes.insert(name.clone(), recipe.clone());
-
-    // Update categories map
-    if !recipe_manager.categories.contains_key(&category) {
-        recipe_manager.categories.insert(category.clone(), vec![name.clone()]);
+    // Check for duplicate recipe name
+    if let Some(existing_recipe) = recipe_manager.recipes.get_mut(&name) {
+        // Modify the existing recipe if it already exists
+        existing_recipe.category = category.clone();
+        existing_recipe.ingredients = ingredients.clone();
+        existing_recipe.instructions = instructions.clone();
     } else {
-        recipe_manager.categories.get_mut(&category).unwrap().push(name.clone());
+        // Create and initialize new recipe object
+        let recipe = Recipe {
+            name: name.clone(),
+            category: category.clone(),
+            ingredients,
+            instructions,
+        };
+
+        // Insert new recipe into the recipes map
+        recipe_manager.recipes.insert(name.clone(), recipe.clone());
+
+        // Update categories map
+        if !recipe_manager.categories.contains_key(&category) {
+            recipe_manager.categories.insert(category.clone(), vec![name.clone()]);
+        } else {
+            recipe_manager.categories.get_mut(&category).unwrap().push(name.clone());
+        }
     }
 
     // Save the updated RecipeManager instance
