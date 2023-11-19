@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use candid::CandidType;
+use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
-// Define the Recipe structure
 #[derive(Clone, CandidType, Deserialize, Serialize)]
 struct Recipe {
     name: String,
@@ -11,92 +12,88 @@ struct Recipe {
     instructions: String,
 }
 
-// Define a RecipeManager struct to manage recipes
-#[derive(Default, CandidType, Deserialize, Serialize)]
+#[derive(Default, CandidType)]
 struct RecipeManager {
     recipes: HashMap<String, Recipe>,
     categories: HashMap<String, Vec<String>>,
 }
 
-// Function to add a recipe
+lazy_static::lazy_static! {
+    static ref RECIPE_MANAGER: Arc<RwLock<RecipeManager>> = Arc::new(RwLock::new(RecipeManager::default()));
+}
+
+fn sanitize_input(input: &str) -> String {
+    // Replace any potentially harmful characters
+    input.chars().filter(|&c| c.is_alphanumeric() || c.is_whitespace()).collect()
+}
+
 #[ic_cdk::update]
-fn add_recipe(name: String, category: String, ingredients: Vec<String>, instructions: String) {
-    // Check for duplicate recipe name
-    if let Some(existing_recipe) = RecipeManager::load().recipes.get(&name) {
-        // Raise error or return appropriate message indicating conflict
-        error!("Recipe with name '{}' already exists: {:?}", name, existing_recipe);
-        return;
+fn add_recipe(name: String, category: String, ingredients: Vec<String>, instructions: String) -> Result<(), String> {
+    let sanitized_name = sanitize_input(&name);
+
+    let recipe_manager = RECIPE_MANAGER.write().map_err(|_| "Failed to acquire write lock")?;
+
+    if recipe_manager.recipes.contains_key(&sanitized_name) {
+        return Err(format!("Recipe with name '{}' already exists", sanitized_name));
     }
 
-    // Create and initialize new recipe object
     let recipe = Recipe {
-        name: name.clone(),
+        name: sanitized_name.clone(),
         category: category.clone(),
-        ingredients: ingredients.clone(),
-        instructions: instructions.clone(),
+        ingredients,
+        instructions,
     };
 
-    // Access RecipeManager instance safely
-    let mut recipe_manager = RecipeManager::load();
+    let mut categories = recipe_manager.categories.clone();
+    categories
+        .entry(category.clone())
+        .or_insert_with(Vec::new)
+        .push(sanitized_name.clone());
 
-    // Insert new recipe into the recipes map
-    recipe_manager.recipes.insert(name.clone(), recipe.clone());
+    let mut recipes = recipe_manager.recipes.clone();
+    recipes.insert(sanitized_name, recipe);
 
-    // Update categories map
-    if !recipe_manager.categories.contains_key(&category) {
-        recipe_manager.categories.insert(category.clone(), vec![name.clone()]);
-    } else {
-        recipe_manager.categories.get_mut(&category).unwrap().push(name.clone());
-    }
+    let mut recipe_manager = recipe_manager.clone();
+    recipe_manager.categories = categories;
+    recipe_manager.recipes = recipes;
 
-    // Save the updated RecipeManager instance
-    recipe_manager.save();
+    *RECIPE_MANAGER.write().map_err(|_| "Failed to acquire write lock")? = recipe_manager;
+
+    Ok(())
 }
 
-// Function to search for recipes by category
 #[ic_cdk::query]
-fn search_by_category(category: String) -> Vec<Recipe> {
-    // Sanitize input to prevent malicious characters or expressions
-    let sanitized_category = sanitize_input(category);
+fn search_by_category(category: String) -> Result<Vec<Recipe>, String> {
+    let sanitized_category = sanitize_input(&category);
 
-    // Access RecipeManager instance safely
-    let recipe_manager = RecipeManager::load();
+    let recipe_manager = RECIPE_MANAGER.read().map_err(|_| "Failed to acquire read lock")?;
 
-    // Retrieve recipes based on the sanitized category
-    if let Some(recipe_names) = recipe_manager.categories.get(&sanitized_category) {
-        let recipes: Vec<Recipe> = recipe_names
-            .iter()
-            .filter_map(|name| recipe_manager.recipes.get(name))
-            .cloned()
-            .collect();
-        return recipes;
-    }
+    let recipe_names = recipe_manager.categories.get(&sanitized_category).cloned().unwrap_or_default();
 
-    Vec::new()
+    let recipes: Vec<Recipe> = recipe_names
+        .into_iter()
+        .filter_map(|name| recipe_manager.recipes.get(&name).cloned())
+        .collect();
+
+    Ok(recipes)
 }
 
-// Function to search for recipes by name
 #[ic_cdk::query]
-fn search_by_name(name: String) -> Option<Recipe> {
-    // Sanitize input to prevent malicious characters or expressions
-    let sanitized_name = sanitize_input(name);
+fn search_by_name(name: String) -> Result<Option<Recipe>, String> {
+    let sanitized_name = sanitize_input(&name);
 
-    // Access RecipeManager instance safely
-    let recipe_manager = RecipeManager::load();
+    let recipe_manager = RECIPE_MANAGER.read().map_err(|_| "Failed to acquire read lock")?;
 
-    // Retrieve recipe based on the sanitized name
-    recipe_manager.recipes.get(&sanitized_name).cloned()
+    Ok(recipe_manager.recipes.get(&sanitized_name).cloned())
 }
 
-// Function to get all recipes
 #[ic_cdk::query]
-fn get_all_recipes() -> Vec<Recipe> {
-    // Access RecipeManager instance safely
-    let recipe_manager = RecipeManager::load();
+fn get_all_recipes() -> Result<Vec<Recipe>, String> {
+    let recipe_manager = RECIPE_MANAGER.read().map_err(|_| "Failed to acquire read lock")?;
 
-    // Efficient retrieval of all recipes
     let all_recipes: Vec<Recipe> = recipe_manager.recipes.values().cloned().collect();
-    all_recipes
+
+    Ok(all_recipes)
 }
 
 ic_cdk::export_candid!();
