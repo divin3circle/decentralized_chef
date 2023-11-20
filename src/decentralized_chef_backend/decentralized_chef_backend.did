@@ -1,11 +1,12 @@
 type Recipe = record {
+  id : nat64;
   name : text;
   instructions : text;
   category : text;
   ingredients : vec text;
 };
 service : {
-  add_recipe : (text, text, vec text, text) -> ();
+  add_recipe : (Recipe) -> (opt Recipe);
   get_all_recipes : () -> (vec Recipe) query;
   search_by_category : (text) -> (vec Recipe) query;
   search_by_name : (text) -> (opt Recipe) query;
